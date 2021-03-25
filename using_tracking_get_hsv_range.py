@@ -1,11 +1,16 @@
-# -*- coding: UTF-8 -*-
-"""
-    @description: 
-        
-"""
+## License: Apache 2.0. See LICENSE file in root directory.
+## Copyright(c) 2015-2017 Intel Corporation. All Rights Reserved.
+
+###############################################
+##      Open CV and Numpy integration        ##
+###############################################
+
 import pyrealsense2 as rs
 import numpy as np
 import cv2
+
+def nothing(x):
+    pass
 
 # Configure depth and color streams
 pipeline = rs.pipeline()
@@ -29,7 +34,8 @@ pipeline.start(config)
 # get scale of depth sensor
 depth_sensor = pipeline_profile.get_device().first_depth_sensor()
 depth_scale = depth_sensor.get_depth_scale()
-
+print("depth_scale is")
+print(depth_scale)
 
 # clipping_distance_in_meters meters away
 clipping_distance_in_meters = 1 # 1 meter
@@ -40,8 +46,15 @@ align_to = rs.stream.color
 align = rs.align(align_to)
 
 try:
-
+    cv2.namedWindow("Tracking")
+    cv2.createTrackbar("LH", "Tracking", 0, 255, nothing)
+    cv2.createTrackbar("LS", "Tracking", 0, 255, nothing)
+    cv2.createTrackbar("LV", "Tracking", 0, 255, nothing)
+    cv2.createTrackbar("UH", "Tracking", 255, 255, nothing)
+    cv2.createTrackbar("US", "Tracking", 255, 255, nothing)
+    cv2.createTrackbar("UV", "Tracking", 255, 255, nothing)
     while True:
+
         # Wait for a coherent pair of frames: depth and color
         frames = pipeline.wait_for_frames()
         aligned_frame = align.process(frames)
@@ -62,45 +75,24 @@ try:
         
         hsv_map = cv2.cvtColor(bg_rmvd,cv2.COLOR_BGR2HSV)
 
-        l_h = 170
-        l_s = 42
-        l_v = 41
-        u_h = 185
-        u_s = 255
-        u_v = 255
+        l_h = cv2.getTrackbarPos("LH", "Tracking")
+        l_s = cv2.getTrackbarPos("LS", "Tracking")
+        l_v = cv2.getTrackbarPos("LV", "Tracking")
+        u_h = cv2.getTrackbarPos("UH", "Tracking")
+        u_s = cv2.getTrackbarPos("US", "Tracking")
+        u_v = cv2.getTrackbarPos("UV", "Tracking")
         l_b = np.array([l_h, l_s, l_v])
         u_b = np.array([u_h, u_s, u_v])
         mask = cv2.inRange(hsv_map, l_b, u_b)
         res = cv2.bitwise_and(bg_rmvd, bg_rmvd, mask=mask)
-
+        
         img = np.hstack((bg_rmvd, depth_colormap))
-
-        # get object from mask map and calculate position
-        mask_index = np.nonzero(mask)
-
-        if not mask_index[0].shape[0] == 0:
-            x_index = int(np.median(mask_index[1]))
-            y_index = int(np.median(mask_index[0]))            
-            x_min = x_index - 20
-            x_max = x_index + 20
-            y_min = y_index - 20
-            y_max = y_index + 20
-            # Intrinsics & Extrinsics
-            depth_intrin = depth_frame.profile.as_video_stream_profile().intrinsics
-            # print(depth_intrin)
-            #  640x480  p[314.696 243.657]  f[615.932 615.932]
-            depth_pixel = [x_index,y_index]
-            dist2obj = depth_frame.get_distance(x_index,y_index)
-            depth_point = rs.rs2_deproject_pixel_to_point(depth_intrin, depth_pixel, dist2obj)
-            txt = "({:.2},{:.2},{:.2}".format(depth_point[0],depth_point[1],depth_point[2])
-            # print(txt)
-            cv2.rectangle(res, (x_min,y_min),(x_max,y_max),(255,0,0),2)
-            cv2.putText(res, txt, (x_index,y_index), cv2.FONT_HERSHEY_SIMPLEX,1,(0,255,0),1)
         cv2.imshow('Align Example',img)
         cv2.imshow("mask", mask)
         cv2.imshow("res", res)
-        # print(depth_point)
-        if cv2.waitKey(100) & 0xFF == ord('q'):   # quit
+
+        key = cv2.waitKey(1)
+        if key == 27:
             break
     cv2.destroyAllWindows()
 
